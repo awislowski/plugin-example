@@ -1,0 +1,89 @@
+group = 'pl.awislowski.elasticsearch.plugin'
+version = versions.elasticsearch
+
+
+buildscript {
+  ext {
+    pluginName = 'example-plugin'
+    pluginClassname = 'pl.awislowski.elasticsearch.plugin.example.ExamplePlugin'
+    pluginDescription = 'Example plugin description'
+    versions = [
+            elasticsearch : '2.3.1'
+        ]
+  }
+}
+
+apply plugin: 'java'
+
+repositories {
+    mavenCentral()
+}
+
+compileJava {
+  sourceCompatibility = 1.8
+  targetCompatibility = 1.8
+}
+
+configurations {
+  providedCompile
+  wagon
+  releaseJars {
+    extendsFrom runtime
+    exclude group: 'org.elasticsearch'
+  }
+}
+
+tasks.withType(JavaCompile) {
+  options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
+}
+
+dependencies {
+    compile group: 'org.elasticsearch', name: 'elasticsearch', version: versions.elasticsearch
+    testCompile group: 'junit', name: 'junit', version: '4.11'
+}
+
+
+task makePluginDescriptor(type: Copy) {
+  from 'src/main/templates'
+  into 'build/tmp/plugin'
+  expand([
+      'descriptor': [
+          'name'                : pluginName,
+          'classname'           : pluginClassname,
+          'description'         : pluginDescription,
+          'jvm'                 : true,
+          'site'                : false,
+          'isolated'            : true,
+          'version'             : project.property('version'),
+          'javaVersion'         : project.property('targetCompatibility'),
+          'elasticsearchVersion': project.property('version')
+      ]
+  ])
+}
+
+task buildPluginZip(type: Zip, dependsOn: [':jar', ':makePluginDescriptor']) {
+  from files(libsDir)
+  from configurations.releaseJars
+  from 'build/tmp/plugin'
+  classifier = 'plugin'
+}
+
+task unpackPlugin(type: Copy, dependsOn: [':buildPluginZip']) {
+  delete "plugins"
+  from files(libsDir)
+  from configurations.releaseJars
+  from 'build/tmp/plugin'
+  into "plugins/${pluginName}"
+}
+
+clean {
+  delete "plugins"
+}
+
+artifacts {
+  archives buildPluginZip
+}
+
+task wrapper(type: Wrapper) {
+  gradleVersion = '2.14.1'
+}
